@@ -12,7 +12,7 @@ MIT licensed (see `LICENSE`). Model weights are not included; each tool says wha
 |---|---|---|
 | `fleet/` | `fleet_demo.py` — fire one `/api/generate` at each of N Ollama instances at the same moment and report each instance's own `eval_count` / `eval_duration` from the final stream frame; `relay` mode chains plan → build → review across instances. `--trace` writes NDJSON. | Python 3.8+, standard library only; one or more Ollama endpoints |
 | `bge-embed/` | BGE-M3 hybrid (dense 1024 + sparse) embedding service: FastAPI over `FlagEmbedding`, token-aware markdown chunker, deterministic point IDs, Qdrant-shaped output. `embed_core.py` is the contract module; the service bind-mounts it rather than copying it. | Docker + compose; CPU (≈2.3 GB weight download on first boot) |
-| `rerank/` | `ov_rerank.py` — cross-encoder reranking latency across candidate counts (8/32/128) on OpenVINO GenAI's `TextRerankPipeline`, any device OpenVINO can see; `corpus_real.json` is the fixed document pool (256-token docs and three other lengths). | Docker; `openvino-genai` (pip); an OpenVINO IR of `BAAI/bge-reranker-base` (conversion command below) |
+| `rerank/` | `ov_rerank.py` — cross-encoder reranking latency across candidate counts (8/32/128) on OpenVINO GenAI's `TextRerankPipeline`, any device OpenVINO can see; `corpus.json` is the document pool: 40 docs in each of four token buckets (32/256/1024/4096), public-domain Project Gutenberg prose, token-counted with the reranker's own tokenizer; `make_corpus.py` rebuilds it. | Docker; `openvino-genai` (pip); an OpenVINO IR of `BAAI/bge-reranker-base` (conversion command below) |
 
 ## fleet
 
@@ -54,8 +54,12 @@ a rebuilt driver layer, which CPU does not need):
 ```bash
 mkdir -p out && docker run --rm -i -v "$PWD/models:/m:ro" -v "$PWD/out:/out" -v "$PWD/rerank:/harness:ro" python:3.12-slim bash -c '
 pip install -q openvino-genai
-python3 /harness/ov_rerank.py --model /m/bge-reranker-ov --device CPU --corpus /harness/corpus_real.json --candidates 8,32,128 --reps 5 --tag cpu --out /out/rerank.ndjson'
+python3 /harness/ov_rerank.py --model /m/bge-reranker-ov --device CPU --corpus /harness/corpus.json --candidates 8,32,128 --reps 5 --tag cpu --out /out/rerank.ndjson'
 ```
+
+The originating fleet measured its tiers on text sampled from its own retrieval corpus; the public
+corpus has the same shape (same bucket sizes, same count) but different prose, so compare numbers
+across machines only when both ran the same corpus file.
 
 One NDJSON record per candidate count: `load_s`, `latency_p50_ms` (median of `--reps`),
 `docs_per_s`, `free_mib`; a device that cannot load the pipeline is recorded as `supported: false`,
