@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+FlagEmbedding>=1.2.10
+qdrant-client>=1.9      # embed_core imports qdrant_client.models
+# torch (CPU) is installed in the Dockerfile from the CPU wheel index to avoid
+# pulling the multi-GB CUDA build for the CPU service.

@@ -1,0 +1,37 @@
+# BGE-M3 hybrid (dense + sparse) embed service, CPU. Published from the
+# bhannath.ai/stack fleet's bge-embed deployment; the compose that runs there
+# differs only in joining a named docker network so other containers reach it
+# as http://bge-embed:8055.
+#
+# embed_core.py is mounted read-only from this directory, NOT copied into the
+# image, so the service and any ingester that imports the same file can never
+# embed/chunk differently.
+services:
+  bge-embed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bge-m3-embed:cpu
+    container_name: bge-embed
+    restart: unless-stopped
+    environment:
+      BGE_DEVICE: "cpu"        # -> "cuda" to run this same image on an NVIDIA host
+      BGE_FP16: "0"            # -> "1" with cuda
+      BGE_BATCH_SIZE: "8"
+      PORT: "8055"
+    volumes:
+      # the contract module (read-only)
+      - ./embed_core.py:/app/embed_core.py:ro
+      # persist the ~2.3GB BGE-M3 weights across restarts (first boot downloads them)
+      - bge_m3_models:/models
+    ports:
+      - "8055:8055"            # host expose for smoke_test.sh / curl
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if 'ok'==__import__('json').load(urllib.request.urlopen('http://localhost:8055/health'))['status'] else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 20            # generous: first boot waits on the weight download
+      start_period: 300s
+
+volumes:
+  bge_m3_models:
