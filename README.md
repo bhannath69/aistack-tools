@@ -48,14 +48,18 @@ pip install -q "optimum-intel[openvino]" transformers huggingface_hub
 optimum-cli export openvino --model BAAI/bge-reranker-base --task text-classification /m/bge-reranker-ov'
 ```
 
-Run the CPU arm (stock `openvino-genai`; the GPU/NPU arms on the originating fleet used an image with
-a rebuilt driver layer, which CPU does not need):
+Run the CPU arm (stock `openvino-genai` from pip; the GPU/NPU arms on the originating fleet used an
+image with a rebuilt driver layer, which CPU does not need). Dependencies install once into `site/`:
 
 ```bash
-mkdir -p out && docker run --rm -i -v "$PWD/models:/m:ro" -v "$PWD/out:/out" -v "$PWD/rerank:/harness:ro" python:3.12-slim bash -c '
-pip install -q openvino-genai
-python3 /harness/ov_rerank.py --model /m/bge-reranker-ov --device CPU --corpus /harness/corpus.json --candidates 8,32,128 --reps 5 --tag cpu --out /out/rerank.ndjson'
+mkdir -p site out
+docker run --rm -i -v "$PWD/site:/site" python:3.12-slim pip install -q --target /site openvino-genai
+docker run --rm -i -e PYTHONPATH=/site -v "$PWD/site:/site:ro" -v "$PWD/models:/m:ro" -v "$PWD/out:/out" -v "$PWD/rerank:/harness:ro" python:3.12-slim \
+    python3 /harness/ov_rerank.py --model /m/bge-reranker-ov --device CPU --corpus /harness/corpus.json --candidates 8,32,128 --reps 5 --tag cpu --out /out/rerank.ndjson
 ```
+
+Measured on a Core Ultra 7 270K Plus (24 threads, no AMX) with this corpus: 8 / 32 / 128 candidates
+of 256-token documents reranked in 420 / 1,636 / 6,523 ms p50, about 19.5 docs/s.
 
 The originating fleet measured its tiers on text sampled from its own retrieval corpus; the public
 corpus has the same shape (same bucket sizes, same count) but different prose, so compare numbers
