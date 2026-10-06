@@ -39,7 +39,7 @@ def clean(text):
     if start is None:
         return text
     end = next((i for i in range(start + 1, len(lines)) if "*** END OF" in lines[i].upper()), None)
-    return "\n".join(lines[start:end] if end is not None else lines[start:])
+    return "\n".join(lines[start + 1:end] if end is not None else lines[start + 1:])
 
 
 def paragraphs_roundrobin(paragraph_lists):
@@ -112,7 +112,7 @@ def main():
         if text is None:
             continue
         paras = [re.sub(r"\s+", " ", p).strip() for p in re.split(r"\n\s*\n", clean(text))]
-        paras = [p for p in paras if len(p) >= 40]
+        paras = [p for p in paras if len(p) >= 40 and "Gutenberg" not in p]
         if paras:
             paras_lists.append(paras)
     if not paras_lists:
